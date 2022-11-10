@@ -1,6 +1,8 @@
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+// must link to ws_32
+// compiling with g++ -lws_32 (links with libws_32.a)
 
 #define C_LOG std::clog
 
