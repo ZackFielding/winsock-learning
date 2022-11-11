@@ -16,36 +16,38 @@ int main()
       - MAKEWORD(2,2) requests WinSock v2.2 on the system
       - takes a long pointer to WSADATA struct
     */
-    WSADATA* wsa_data;
-    int sock_init_r {WSAStartup(MAKEWORD(2,2), wsa_data)};
+    WSADATA wsa_data;
+    int sock_init_r {WSAStartup(MAKEWORD(2,2), &wsa_data)};
     
     if (sock_init_r != 0)
     {
-        C_LOG << "Socket initialization error ... terminating program.\n";
+        C_LOG << "Socket initialization error.  Error: " << WSAGetLastError() << '\n';
         return 1;         
     }
     else
     {
         C_LOG << "winsock dll found .. status of socket post-init: "
-            << wsa_data->szSystemStatus << '\n';
+            << wsa_data.szSystemStatus << '\n';
     }
 
     // get address info
-    addrinfo *addr_result, *match_this; // structs to hold address info
+    addrinfo *addr_result, match_this; // structs to hold address info
       // match_this->ai_addrlen && ai_addre && ai_next must be 0 or NULL or else will fail func
       // set all memory to 0 using func
-    SecureZeroMemory(match_this, sizeof match_this); // set to 0s 
-    match_this->ai_family = AF_INET; // UDP or TCP
-    match_this->ai_socktype = SOCK_STREAM; //TCP
-    match_this->ai_protocol = IPPROTO_TCP; //TCP
+    ZeroMemory(&match_this, sizeof match_this); // set to 0s 
+    match_this.ai_family = AF_INET; // UDP or TCP
+    match_this.ai_socktype = SOCK_STREAM; //TCP
+    match_this.ai_protocol = IPPROTO_TCP; //TCP
 
-    int add_err {getaddrinfo(NULL, "55555", match_this, &addr_result)};
+    int add_err {getaddrinfo(NULL, "55555", &match_this, &addr_result)};
     if (add_err != 0)
     {
         C_LOG << "Error in retrieving address information ... terminating program,\n";
         WSACleanup(); // tell OS to deregister socket - frees up .dll
         return 1;
     }
+    else
+        C_LOG << "Local address info returned sucessfully.\n";
 
     // create socket for server
     // this socket uses the information passed back from the getaddrinfo function
@@ -56,9 +58,13 @@ int main()
     
     if (ser_sock == INVALID_SOCKET)
     {
-        C_LOG << "Socket init failed ... terminating program.\n";    
+        C_LOG << "Socket init failed.  Error: " << WSAGetLastError() << '\n';
         WSACleanup();
         return 1;
+    }
+    else
+    {
+        C_LOG << "Socket initialized!\n";
     }
 
     // now have a socket that is set up for TCP
