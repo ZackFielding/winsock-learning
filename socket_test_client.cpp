@@ -1,6 +1,7 @@
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <cstring>
 
 #define C_LOG std::clog
 // create client TCP connection to communicate with server
@@ -85,7 +86,14 @@ int main()
     }
     else
     {
-        C_LOG << "Client connection established .. data transmission OK.\n";
+        C_LOG << "Client connection established .. data transmission starting...\n";
+        char send_arr[] {"Hello from client!"};
+        int bytes_sent {};
+        bytes_sent = send(base_sock, send_arr, static_cast<int>(std::strlen(send_arr)+1), NULL);
+        if (bytes_sent == SOCKET_ERROR)
+            C_LOG << "Error in sending message to server...\n";
+        else
+            C_LOG << bytes_sent << " number of bytes sent to server.\n";
     }
 
     return 0;

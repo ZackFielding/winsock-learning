@@ -1,10 +1,22 @@
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <vector>
 // must link to ws_32
 // compiling with g++ -lws_32 (links with libws_32.a)
 
 #define C_LOG std::clog
+#define BASE_SOCK_INDEX 0
+
+void cleanupAndClose(std::vector<SOCKET> socket_vector)
+{
+   WSACleanup(); 
+   for(SOCKET& sock : socket_vector)
+   {
+    closesocket(sock);
+   } 
+}
+
 
 // Create a TCP server socket that awaits for client connection
 int main()
@@ -52,11 +64,12 @@ int main()
     // create socket for server
     // this socket uses the information passed back from the getaddrinfo function
     // getaddrinfo finds information based on the match_this, and returns it to addr_result
-    SOCKET ser_sock {socket(addr_result->ai_family,
+    std::vector<SOCKET> sock_arr (5);
+    sock_arr.at(BASE_SOCK_INDEX)= socket(addr_result->ai_family,
         addr_result->ai_socktype,
-        addr_result->ai_protocol)};
+        addr_result->ai_protocol);
     
-    if (ser_sock == INVALID_SOCKET)
+    if (sock_arr.at(BASE_SOCK_INDEX) == INVALID_SOCKET)
     {
         C_LOG << "Socket init failed.  Error: " << WSAGetLastError() << '\n';
         WSACleanup();
@@ -69,7 +82,7 @@ int main()
 
     // now have a socket that is set up for TCP
     // need to bind the socket to an IP address to allow client connections
-    int bind_err{bind(ser_sock, 
+    int bind_err{bind(sock_arr.at(BASE_SOCK_INDEX), 
                     addr_result->ai_addr,
                     static_cast<int>(addr_result->ai_addrlen)
                     )};
@@ -77,19 +90,17 @@ int main()
     if (bind_err == SOCKET_ERROR)
     {
         C_LOG << "Error in binding address to socket ... terminating program.\n";
-        WSACleanup(); // free .dll
-        closesocket(ser_sock); // close socket
+        cleanupAndClose(sock_arr);
         freeaddrinfo(addr_result); // free memory allocated for addrinfo return struct
         return 1;
     }
     freeaddrinfo(addr_result); // free memory (stuct to needed post-bind)
 
     // socket is now bound to address - ready to listen for a connection
-    if (listen(ser_sock, 1) == SOCKET_ERROR)
+    if (listen(sock_arr.at(BASE_SOCK_INDEX), 1) == SOCKET_ERROR)
     {
         C_LOG << "Error in listen function ... terminating program.\n";
-        WSACleanup(); // delink .dll
-        closesocket(ser_sock); // close socket
+        cleanupAndClose(sock_arr);
         return 1;        
     }
     else
@@ -98,14 +109,27 @@ int main()
     }
 
     // wait and accept incoming client connections
-    SOCKET copy_sock; // copy of socket that will actually form connection
-    copy_sock = accept(ser_sock, NULL, NULL);
-    if (copy_sock == INVALID_SOCKET)
+    size_t current_sock {1}; // start tracking copied sockets for connections
+    sock_arr.at(current_sock)= accept(sock_arr.at(0), NULL, NULL);
+    if (sock_arr.at(current_sock) == INVALID_SOCKET)
     {
         C_LOG << "Errorr in awaiting for client connection.\n";
-        WSACleanup();
-        closesocket(copy_sock);
-        closesocket(ser_sock);
+        cleanupAndClose(sock_arr);
+    }
+    else
+    {
+        C_LOG << "Socket connected...\n";
+        constexpr int rec_arr_size {200};
+        char rec_arr [rec_arr_size];
+        int bytes_rec {};
+        bytes_rec = recv(sock_arr.at(current_sock), rec_arr, rec_arr_size, NULL);
+        if (bytes_rec == SOCKET_ERROR)
+            C_LOG << "Error in recieving data from client.\n";
+        else
+        {
+            C_LOG << bytes_rec << "...number of bytes recieved from client.\n"
+                    << "Message from client: " << rec_arr << '\n';
+        }
     }
 
     return 0;
